@@ -1,6 +1,6 @@
 <strong>机器学习期末大作业</strong>  
 <br>
-<strong >作者</strong>:汝鑫，孙宇，陈思康<br>
+<strong >作者</strong>:汝鑫(224081200050)，孙宇(224081200053)，陈思康(224081200029)<br>
 
 
 Environment Requirement<br>
