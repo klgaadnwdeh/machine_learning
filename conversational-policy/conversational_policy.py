@@ -1,19 +1,22 @@
-
 import warnings
+
 warnings.filterwarnings("ignore")
 import math
 import random
 import numpy as np
 import os
 import sys
+
 sys.path.append('/home/mengyuan/KGenSam/data-hepler')
 from data_in import load_rl_model
 from data_out import save_rl_model
 # sys.path.append('..')
 from utils import cuda_
-#TODO select env
+
+# TODO select env
 sys.path.append('/home/mengyuan/KGenSam/user-simulator')
-from env import BinaryRecommendEnv,EnumeratedRecommendEnv
+from env import BinaryRecommendEnv, EnumeratedRecommendEnv
+
 sys.path.append('/home/mengyuan/KGenSam/conversational-policy')
 from conversational_policy_evaluate import dqn_evaluate
 
@@ -29,6 +32,8 @@ import time
 
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
+
+
 class ReplayMemory(object):
 
     def __init__(self, capacity):
@@ -48,15 +53,16 @@ class ReplayMemory(object):
     def __len__(self):
         return len(self.memory)
 
+
 class DQN(nn.Module):
     def __init__(self, state_space, hidden_size, action_space):
-            super(DQN, self).__init__()
-            self.state_space = state_space
-            self.action_space = action_space
-            self.fc1 = nn.Linear(self.state_space, hidden_size)
-            self.fc1.weight.data.normal_(0, 0.1)   # initialization
-            self.out = nn.Linear(hidden_size, self.action_space)
-            self.out.weight.data.normal_(0, 0.1)   # initialization
+        super(DQN, self).__init__()
+        self.state_space = state_space
+        self.action_space = action_space
+        self.fc1 = nn.Linear(self.state_space, hidden_size)
+        self.fc1.weight.data.normal_(0, 0.1)  # initialization
+        self.out = nn.Linear(hidden_size, self.action_space)
+        self.out.weight.data.normal_(0, 0.1)  # initialization
 
     def forward(self, x):
         x = self.fc1(x)
@@ -64,8 +70,9 @@ class DQN(nn.Module):
         actions_value = self.out(x)
         return actions_value
 
+
 class Agent(object):
-    def __init__(self, memory, state_space, hidden_size, action_space, EPS_START = 0.9, EPS_END = 0.05, EPS_DECAY = 200):
+    def __init__(self, memory, state_space, hidden_size, action_space, EPS_START=0.9, EPS_END=0.05, EPS_DECAY=200):
         self.EPS_START = EPS_START
         self.EPS_END = EPS_END
         self.EPS_DECAY = EPS_DECAY
@@ -77,8 +84,7 @@ class Agent(object):
         self.optimizer = optim.RMSprop(self.policy_net.parameters())
         self.memory = memory
 
-
-    def select_action(self, state):
+    def select_action(self, state, enriched_features):
         sample = random.random()
         eps_threshold = self.EPS_END + (self.EPS_START - self.EPS_END) * \
                         math.exp(-1. * self.steps_done / self.EPS_DECAY)
@@ -110,7 +116,6 @@ class Agent(object):
 
         expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
-
         loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
 
         self.optimizer.zero_grad()
@@ -120,7 +125,6 @@ class Agent(object):
         self.optimizer.step()
         return loss.data
 
-    
     def save_policy_model(self, epoch):
         save_rl_model(model=self.policy_net, epoch=epoch)
 
@@ -129,4 +133,6 @@ class Agent(object):
         self.policy_net.load_state_dict(model_dict)
 
 
-
+def update_conversational_policy(user_input, enriched_features):
+    policy.update(user_input, enriched_features)
+    return policy.get_next_response()

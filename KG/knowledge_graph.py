@@ -5,24 +5,63 @@ from tqdm import tqdm
 import pickle
 import time
 import sys
+
 sys.path.append('/home/mengyuan/KGenSam/configuration')
 from base_config import bcfg
 
+import wikipedia
+
+
+# 获取商品信息的示例函数
+def get_item_info(item_id):
+    # 这里假设我们有一个字典或数据库存储商品信息
+    # 示例数据结构
+    item_info_db = {
+        1801: {'title': 'Fishing Rod'},
+        1802: {'title': 'Tent'},
+        # 添加更多商品信息...
+    }
+    return item_info_db.get(item_id, {'title': 'Unknown Item'})
+
+
+# 更新知识图谱的示例函数
+def update_knowledge_graph(item_id, additional_info):
+    # 假设 global_kg 是全局知识图谱对象
+    if not hasattr(global_kg, 'knowledge_graph'):
+        global_kg.knowledge_graph = {}
+
+    if item_id not in global_kg.knowledge_graph:
+        global_kg.knowledge_graph[item_id] = {}
+
+    global_kg.knowledge_graph[item_id].update(additional_info)
+
+
+# 知识图谱增强函数
+def enrich_knowledge_graph(item_id):
+    item_info = get_item_info(item_id)  # 获取商品信息
+    try:
+        wiki_summary = wikipedia.summary(item_info['title'], sentences=3)
+    except wikipedia.exceptions.DisambiguationError as e:
+        wiki_summary = "Summary not available due to disambiguation."
+    except wikipedia.exceptions.PageError as e:
+        wiki_summary = "No Wikipedia page found for this item."
+
+    update_knowledge_graph(item_id, {'wiki_summary': wiki_summary})
 
 
 # interaction data to graph:user-item
 class _CFData(object):
-    def __init__(self,data_name='lastfm'):
-        path=bcfg.data_root
+    def __init__(self, data_name='lastfm'):
+        path = bcfg.data_root
         train_file = path + "/kgdata/train.dat"
         test_file = path + "/kgdata/test.dat"
 
-        self.item_id2kgid_map=dict()
+        self.item_id2kgid_map = dict()
         for i_id in bcfg.item_list:
-            self.item_id2kgid_map[i_id]=i_id+bcfg.n_users
-        self.attribute_id2kgid_map=dict()
+            self.item_id2kgid_map[i_id] = i_id + bcfg.n_users
+        self.attribute_id2kgid_map = dict()
         for a_id in bcfg.attribute_list:
-            self.attribute_id2kgid_map[a_id]=a_id+bcfg.n_users+bcfg.n_items
+            self.attribute_id2kgid_map[a_id] = a_id + bcfg.n_users + bcfg.n_items
 
         # ----------get number of users and items & then load interaction data from train_file & test_file------------
         self.train_data = self._generate_interactions(train_file)
@@ -30,15 +69,15 @@ class _CFData(object):
 
         self.train_user_dict, self.test_user_dict = self._generate_user_dict()
 
-        self.exist_users,self.exist_items = self._generate_user_item_list()
+        self.exist_users, self.exist_items = self._generate_user_item_list()
 
         self._statistic_interactions()
 
     # reading train & test interaction data.
     @staticmethod
     def _generate_interactions(file_name):
-        with open(file_name,'rb') as f:
-            inter_mat=pickle.load(f)
+        with open(file_name, 'rb') as f:
+            inter_mat = pickle.load(f)
         return inter_mat
 
     # generating user interaction dictionary.
@@ -56,15 +95,15 @@ class _CFData(object):
         return train_user_dict, test_user_dict
 
     def _generate_user_item_list(self):
-        inter_mat=np.concatenate((self.train_data,self.test_data),axis=0)
-        user_list,item_list=[],[]
+        inter_mat = np.concatenate((self.train_data, self.test_data), axis=0)
+        user_list, item_list = [], []
         for u_id, i_id in inter_mat:
-            i_id=self.item_id2kgid_map[i_id]
+            i_id = self.item_id2kgid_map[i_id]
             if u_id not in user_list:
                 user_list.append(u_id)
             if i_id not in item_list:
                 item_list.append(i_id)
-        return user_list,item_list
+        return user_list, item_list
 
     def _statistic_interactions(self):
         def _id_range(id_list):
@@ -87,21 +126,14 @@ class _CFData(object):
         print("-        n_users: %d" % self.n_exist_users)
         print("-        n_items: %d" % self.n_exist_items)
         print("-" * 50)
-        # --------------------------------------------------
-        # -     user_range: (0, 1800)
-        # -     item_range: (1801, 9231)
-        # -        n_train: 68381
-        # -         n_test: 8312
-        # -        n_users: 1801
-        # -        n_items: 7123
-        # --------------------------------------------------
+
 
 # items' attributes data to graph:item-attribute
 class _KGData(object):
     def __init__(self, data_name='lastfm'):
 
-        path=bcfg.data_root
-        if bcfg.data_feature_two_layer: # for yelp
+        path = bcfg.data_root
+        if bcfg.data_feature_two_layer:  # for yelp
             kg_file = path + "/kgdata/kg_final_2_layers.txt"
         else:
             kg_file = path + "/kgdata/kg_final.txt"
@@ -123,20 +155,20 @@ class _KGData(object):
 
         # get triplets with canonical direction like <item, has-aspect, entity>
         def _generate_kg_np(filename):
-            with open(filename,'rb') as f:
+            with open(filename, 'rb') as f:
                 kg_np = pickle.load(f)
                 kg_np = np.unique(kg_np, axis=0)
-            new_kg_np=kg_np.copy()
-            new_kg_np[:,0]=kg_np[:,0]+bcfg.n_users
-            new_kg_np[:,2]=kg_np[:,2]+bcfg.n_users+bcfg.n_items
+            new_kg_np = kg_np.copy()
+            new_kg_np[:, 0] = kg_np[:, 0] + bcfg.n_users
+            new_kg_np[:, 2] = kg_np[:, 2] + bcfg.n_users + bcfg.n_items
             return new_kg_np
 
-        can_kg_np=_generate_kg_np(file_name)
+        can_kg_np = _generate_kg_np(file_name)
         # get triplets with inverse direction like <entity, is-aspect-of, item>
         inv_kg_np = can_kg_np.copy()
         inv_kg_np[:, 0] = can_kg_np[:, 2]
         inv_kg_np[:, 2] = can_kg_np[:, 0]
-        inv_kg_np[:, 1] = max(can_kg_np[:, 1]) + 1 # 3   # is-aspect-of id与原关系边id不重复。--2020.9.20
+        inv_kg_np[:, 1] = max(can_kg_np[:, 1]) + 1  # 3   # is-aspect-of id与原关系边id不重复。--2020.9.20
 
         # get full version of knowledge graph
         kg_np = np.concatenate((can_kg_np, inv_kg_np), axis=0)
@@ -170,26 +202,24 @@ class _KGData(object):
         print("-    n_relations: %d" % self.n_relations)
         print("-   n_kg_triples: %d" % self.n_kg_triples)
         print("-" * 50)
-        # --------------------------------------------------
-        # -   entity_range: (1801, 9265)
-        # - relation_range: (2, 3)
-        # -     n_entities: 7465
-        # -    n_relations: 2
-        # -   n_kg_triples: 60580
-        # --------------------------------------------------
+
 
 # final graph:user-item-attribute
 class _CKGData(_CFData, _KGData):
-    def __init__(self,data_name='lastfm'):
-        _CFData.__init__(self,data_name=data_name)
-        _KGData.__init__(self,data_name=data_name)
+    def __init__(self, data_name='lastfm'):
+        _CFData.__init__(self, data_name=data_name)
+        _KGData.__init__(self, data_name=data_name)
         # itemid与userid不重复。--2020.9.20
         self.busi_list = bcfg.item_list
-        self.n_items=bcfg.n_items
+        self.n_items = bcfg.n_items
         self.user_list = bcfg.user_list
-        self.n_users=bcfg.n_users
+        self.n_users = bcfg.n_users
 
         self.ckg_graph = self._combine_cf_kg()
+
+        # 增强知识图谱
+        for item_id in tqdm(self.busi_list, ascii=True):
+            enrich_knowledge_graph(item_id)
 
     def _combine_cf_kg(self):
         kg_mat = self.kg_data
@@ -213,7 +243,6 @@ class _CKGData(_CFData, _KGData):
         for h_id, r_id, t_id in tqdm(kg_mat, ascii=True):
             ckg_graph.add_edges_from([(h_id, t_id)], r_id=r_id)
         return ckg_graph
-
 
 
 start = time.time()

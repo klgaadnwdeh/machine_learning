@@ -12,13 +12,13 @@ import torch
 import argparse
 
 class _Base_Config():
-    def __init__(self):
+    def __init__(self):da
         self.dir_root='/home/mengyuan/AUM-V4'
 
-        self.data_name = 'yelp'
+        self.data_name = 'meta_Sports_and_Outdoors'
 
         self.data_feature_two_layer=False
-        if self.data_name=='lastfm':
+        if self.data_name=='Sports_and_Outdoors_5':
             # false:only small features ; true: 2 layers feature
             self.data_feature_two_layer=False
 
